@@ -582,7 +582,7 @@ input[type=date]{font-family:inherit}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:2px;border-top:1px solid #eef0f3;background:#eef0f3">
 <div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Передано на установку</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">счётчики переданы монтажникам, но ещё не установлены (источник: MMS)</div></div>
 <div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Установлено всего</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">физически установленные счётчики по проекту Aqyl Energy (источник: отчёт ПФ)</div></div>
-<div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Активировано</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">приборы, активированные в e-Qural по проекту Aqyl Energy, то есть передавшие данные (источник: e-Qural)</div></div>
+<div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Активировано</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">приборы со статусом «Установлен» в базе MMS по проекту Aqyl Energy, то есть передавшие данные (источник: e-Qural)</div></div>
 <div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Отставание</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">план на текущий месяц минус фактически установлено</div></div>
 </div>
 </sc-if>
@@ -758,7 +758,7 @@ class Component extends DCLogic {
       neededPace: fmt.format(Math.round(s.recommendedPace)),
       paceGapNote: "Отрыв " + fmt.format(Math.round(Math.abs(s.recommendedPace - s.avgPace10))) + " шт./день · рабочих дней до конца года: " + s.workingDaysLeft,
       activated: fmt.format(s.activated),
-      activatedNote: "активировано в e-Qural · " + pct(s.installed ? (s.activated / s.installed) * 100 : 0, 0) + " от установленных",
+      activatedNote: "в базе MMS · " + pct(s.installed ? (s.activated / s.installed) * 100 : 0, 0) + " от установленных",
       toInstall: fmt.format(s.toInstallTotal),
       accepted: fmt.format(s.accepted),
       acceptedByDoc: fmt.format(s.acceptedByDoc),
