@@ -235,36 +235,25 @@ def fetch_installs():
     else:
         as_of = date.today()
 
-    # ── Daily август: ШПФ и КПФ из своих листов (col1=дата, col5=за день),
-    #    ТПФ из «Ввод данных» col H (лист ТПФ в шаблоне = копия ШПФ) ──
-    def read_sheet_daily(sheet):
-        out = {}
-        for r in range(11, sheet.max_row + 1):
-            d = sheet.cell(r, 1).value
-            v = sheet.cell(r, 5).value
-            if isinstance(d, datetime) and v and float(v) > 0:
-                out[d.date()] = int(float(v))
-        return out
-
-    shpf = read_sheet_daily(wb["ШПФ"]) if "ШПФ" in wb.sheetnames else {}
-    kpf = read_sheet_daily(wb["КПФ"]) if "КПФ" in wb.sheetnames else {}
-
-    tpf = {}
-    for r in range(17, 60):
-        d = ws.cell(r, 6).value   # col F
-        v = ws.cell(r, 8).value   # col H = ТПФ
-        if isinstance(d, datetime) and v and float(v) > 0:
-            tpf[d.date()] = int(float(v))
-
-    aug_dates = sorted(set(shpf) | set(tpf) | set(kpf))
+    # ── Daily август: все три ПФ из блока «Ввод данных» (cols G/H/I) ──
+    # Единый источник, чтобы регионы были синхронны (листы ШПФ/КПФ отстают
+    # по датам и рассинхронизируют график). Формат блока:
+    #   col F = дата, G = Шымкент, H = Туркестан, I = Кызылорда
     daily_aug = []
-    for d in aug_dates:
-        daily_aug.append({
-            "date": str(d),
-            "shymkent": shpf.get(d, 0),
-            "turkestan": tpf.get(d, 0),
-            "kyzylorda": kpf.get(d, 0),
-        })
+    for r in range(17, 60):
+        d = ws.cell(r, 6).value   # col F — дата
+        if not isinstance(d, datetime):
+            continue
+        sh = clean_num(ws.cell(r, 7).value)   # G
+        tu = clean_num(ws.cell(r, 8).value)   # H
+        ky = clean_num(ws.cell(r, 9).value)   # I
+        if sh or tu or ky:
+            daily_aug.append({
+                "date": str(d.date()),
+                "shymkent": sh,
+                "turkestan": tu,
+                "kyzylorda": ky,
+            })
 
     print(f"  ✓ установлено {fmt(total_installed)} "
           f"(ШПФ {fmt(installed['shymkent'])}, ТПФ {fmt(installed['turkestan'])}, "
@@ -342,15 +331,9 @@ def fetch_warehouse():
 # ──────────────────────────────────────────────────────────────
 
 def fetch_platform():
-    """Активировано — через e-Qural API GetActivatedCount.
-       К установке — из БД MMS (device_status='2')."""
-    # ── 1. Активировано (e-Qural API) — ВРЕМЕННО ОТКЛЮЧЕНО ──
-    # Сеть: equral.ktga.kz (10.20.14.10) недоступен с VPN-сегмента,
-    # ждём открытие доступа от сетевого инженера QGA. Пока activated = 0.
-    activated = {"shymkent": 0, "turkestan": 0, "kyzylorda": 0}
-    act_total = 0
-
-    # ── 2. К установке (БД MMS, device_status='2') ──
+    """Активировано и К установке — оба из БД MMS.
+       Активировано = device_status='3' (Установлен).
+       К установке   = device_status='2'."""
     print("→ Подключаюсь к БД MMS…")
     try:
         import pymysql
@@ -361,12 +344,35 @@ def fetch_platform():
     except Exception as e:
         die(f"БД MMS недоступна (VPN?): {e}")
 
+    activated = {"shymkent": 0, "turkestan": 0, "kyzylorda": 0}
+    act_total = 0
     to_install = {"shymkent": 0, "turkestan": 0, "kyzylorda": 0}
+    to_install_total = 0
     try:
         cur = conn.cursor()
+
+        # ── Активировано (device_status='3', Установлен) ──
+        cur.execute("SELECT COUNT(*) FROM dl_device WHERE device_status = %s",
+                    (MMS_STATUS["installed"],))
+        act_total = int(cur.fetchone()[0])
         cur.execute(
             "SELECT region_code, COUNT(*) FROM dl_device "
-            "WHERE device_status = %s GROUP BY region_code",
+            "WHERE device_status = %s AND region_code IS NOT NULL "
+            "GROUP BY region_code",
+            (MMS_STATUS["installed"],))
+        for region_code, cnt in cur.fetchall():
+            en = MMS_REGION.get(str(region_code))
+            if en:
+                activated[en] = int(cnt)
+
+        # ── К установке (device_status='2') ──
+        cur.execute("SELECT COUNT(*) FROM dl_device WHERE device_status = %s",
+                    (MMS_STATUS["toInstall"],))
+        to_install_total = int(cur.fetchone()[0])
+        cur.execute(
+            "SELECT region_code, COUNT(*) FROM dl_device "
+            "WHERE device_status = %s AND region_code IS NOT NULL "
+            "GROUP BY region_code",
             (MMS_STATUS["toInstall"],))
         for region_code, cnt in cur.fetchall():
             en = MMS_REGION.get(str(region_code))
@@ -376,10 +382,8 @@ def fetch_platform():
         die(f"SQL MMS упал: {e}")
     finally:
         conn.close()
-    to_install_total = sum(to_install.values())
 
     print(f"  ✓ активировано {fmt(act_total)}, к установке {fmt(to_install_total)}")
-    # online пока не считаем отдельно (нет источника) — 0
     online = {"shymkent": 0, "turkestan": 0, "kyzylorda": 0}
     return {"activated": activated, "online": online,
             "activated_total": act_total,
@@ -390,7 +394,7 @@ def fetch_platform():
 # 4. Сборка DATA
 # ──────────────────────────────────────────────────────────────
 
-def build_data(inst, wh, plat):
+def build_data(inst, wh, plat, equral_total=0):
     print("→ Считаю KPI…")
 
     installed = inst["installed"]
@@ -505,6 +509,7 @@ def build_data(inst, wh, plat):
 
     summary = {
         "generatedAt": ru_date(today),
+        "equralTotal": equral_total,
         "installed": total,
         "activated": plat["activated_total"],
         "online": online_total,
@@ -623,17 +628,130 @@ def git_push(repo_dir):
 # MAIN
 # ──────────────────────────────────────────────────────────────
 
+def fetch_equral_total():
+    """Общее кол-во ПУ в e-Qural (весь парк, без фильтров).
+       Запускать с ВЫКЛЮЧЕННЫМ VPN."""
+    print("→ Запрашиваю общее кол-во e-Qural (VPN должен быть ВЫКЛЮЧЕН)…")
+    headers = {"X-Api-Key": EQURAL_API_KEY, "Content-Type": "application/json"}
+    try:
+        r = requests.post(EQURAL_API_URL, headers=headers, json={}, timeout=30)
+        r.raise_for_status()
+        total = int(r.json().get("count", 0))
+    except Exception as e:
+        die(f"e-Qural API недоступен (VPN точно ВЫКЛЮЧЕН? ключ верный?): {e}")
+    print(f"  ✓ всего в e-Qural: {fmt(total)}")
+    return total
+
+
+def _snapshot_path():
+    import os
+    return os.path.join(os.path.expanduser(REPO_DIR), ".snapshot_cache.json")
+
+
+def save_snapshot(inst, wh, plat):
+    """Сохраняет собранные main-данные, чтобы этап equral мог пересобрать."""
+    import os
+    snap = {
+        "installed": inst["installed"],
+        "total_installed": inst["total_installed"],
+        "plan_by_reg": inst["plan_by_reg"],
+        "as_of": inst["as_of"].isoformat(),
+        "daily_aug": inst["daily_aug"],
+        "wh": wh,
+        "activated": plat["activated"],
+        "activated_total": plat["activated_total"],
+        "toInstall": plat["toInstall"],
+        "toInstall_total": plat["toInstall_total"],
+    }
+    with open(_snapshot_path(), "w", encoding="utf-8") as f:
+        json.dump(snap, f, ensure_ascii=False)
+
+
+def load_snapshot():
+    import os
+    from datetime import date as _date
+    p = _snapshot_path()
+    if not os.path.exists(p):
+        return None
+    try:
+        with open(p, encoding="utf-8") as f:
+            snap = json.load(f)
+        inst = {
+            "installed": snap["installed"],
+            "total_installed": snap["total_installed"],
+            "plan_by_reg": snap["plan_by_reg"],
+            "as_of": _date.fromisoformat(snap["as_of"]),
+            "daily_aug": snap["daily_aug"],
+        }
+        plat = {
+            "activated": snap["activated"],
+            "online": {"shymkent": 0, "turkestan": 0, "kyzylorda": 0},
+            "activated_total": snap["activated_total"],
+            "toInstall": snap["toInstall"],
+            "toInstall_total": snap["toInstall_total"],
+        }
+        return inst, snap["wh"], plat
+    except Exception:
+        return None
+
+
+def _equral_cache_path():
+    import os
+    return os.path.join(os.path.expanduser(REPO_DIR), ".equral_total.json")
+
+
+def load_equral_total():
+    import os
+    p = _equral_cache_path()
+    if os.path.exists(p):
+        try:
+            with open(p, encoding="utf-8") as f:
+                return int(json.load(f).get("total", 0))
+        except Exception:
+            pass
+    return 0
+
+
+def save_equral_total(total):
+    with open(_equral_cache_path(), "w", encoding="utf-8") as f:
+        json.dump({"total": total}, f, ensure_ascii=False)
+
+
 def main():
     no_git = ("--dry-run" in sys.argv) or ("--no-git" in sys.argv)
+    stage = "main"
+    if "--stage" in sys.argv:
+        i = sys.argv.index("--stage")
+        if i + 1 < len(sys.argv):
+            stage = sys.argv[i + 1]
 
     print("=" * 55)
-    print("  Aqyl Energy — обновление CEO-дашборда (v2)")
+    print(f"  Aqyl Energy — обновление CEO-дашборда (этап: {stage})")
     print("=" * 55)
 
+    if stage == "equral":
+        # ── Этап 2 (VPN ВЫКЛЮЧЕН): только общее кол-во e-Qural ──
+        equral_total = fetch_equral_total()
+        save_equral_total(equral_total)
+        snap = load_snapshot()
+        if snap is None:
+            die("нет снапшота main-данных. Сначала: python3 update.py --stage main")
+        inst, wh, plat = snap
+        data = build_data(inst, wh, plat, equral_total=equral_total)
+        render(data, REPO_DIR)
+        if not no_git:
+            git_push(REPO_DIR)
+        print("\n✅ Этап e-Qural готов (общее кол-во добавлено).\n")
+        return
+
+    # ── Этап 1 (VPN ВКЛЮЧЁН): Google + БД MMS ──
     inst = fetch_installs()
     wh = fetch_warehouse()
-    plat = fetch_platform()
-    data = build_data(inst, wh, plat)
+    plat = fetch_platform()          # активировано + к установке из БД MMS
+    save_snapshot(inst, wh, plat)    # для последующего этапа equral
+    equral_total = load_equral_total()   # из прошлого прогона equral (или 0)
+
+    data = build_data(inst, wh, plat, equral_total=equral_total)
     render(data, REPO_DIR)
 
     if no_git:
@@ -641,7 +759,7 @@ def main():
     else:
         git_push(REPO_DIR)
 
-    print("\n✅ Готово.\n")
+    print("\n✅ Этап main готов.\n")
 
 
 if __name__ == "__main__":

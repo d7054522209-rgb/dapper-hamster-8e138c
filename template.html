@@ -101,6 +101,11 @@ input[type=date]{font-family:inherit}
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
 <div style="background:#fff;border:1px solid #e6e8ec;border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:5px">
+<div style="font-size:12px;font-weight:700;color:#6e7480">Общее кол-во e-Qural</div>
+<div style="font-size:26px;font-weight:800;letter-spacing:-0.8px">{{ equralTotal }}</div>
+<div style="font-size:11px;color:#9aa0aa">всего приборов в системе e-Qural</div>
+</div>
+<div style="background:#fff;border:1px solid #e6e8ec;border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:5px">
 <div style="font-size:12px;font-weight:700;color:#6e7480">Установлено всего</div>
 <div style="font-size:26px;font-weight:800;letter-spacing:-0.8px">{{ installed }}</div>
 <div style="font-size:11px;color:#9aa0aa">повесили монтажники</div>
@@ -111,9 +116,9 @@ input[type=date]{font-family:inherit}
 <div style="font-size:11px;color:#9aa0aa">{{ activatedNote }}</div>
 </div>
 <div style="background:#fff;border:1px solid #e6e8ec;border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:5px">
-<div style="font-size:12px;font-weight:700;color:#6e7480">К установке</div>
+<div style="font-size:12px;font-weight:700;color:#6e7480">Передано на установку</div>
 <div style="font-size:26px;font-weight:800;letter-spacing:-0.8px">{{ toInstall }}</div>
-<div style="font-size:11px;color:#9aa0aa">у монтажников, ждут</div>
+<div style="font-size:11px;color:#9aa0aa">переданы монтажникам, ждут установки</div>
 </div>
 <div style="background:#fff;border:1px solid #e6e8ec;border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:5px">
 <div style="font-size:12px;font-weight:700;color:#6e7480">Установлено за день</div>
@@ -131,10 +136,10 @@ input[type=date]{font-family:inherit}
 </div>
 <sc-if value="{{ glossaryOpen }}" hint-placeholder-val="{{ true }}">
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:2px;border-top:1px solid #eef0f3;background:#eef0f3">
-<div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">К установке</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">счётчики переданы монтажникам, но ещё не установлены</div></div>
+<div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Передано на установку</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">счётчики переданы монтажникам, но ещё не установлены</div></div>
 <div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Установлено всего</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">физически установленные&nbsp; (данные от ПФ)</div></div>
-<div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Активировано</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">занесли в базу MMS со статусом «Установлен»</div></div>
-<div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Факт за период</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">установки за выбранный диапазон дат</div></div>
+<div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Активировано</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">активировано в базе MMS (статус «Установлен»)</div></div>
+
 <div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Отставание</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">план на текущий месяц минус фактически установлено</div></div>
 </div>
 </sc-if>
@@ -227,7 +232,7 @@ input[type=date]{font-family:inherit}
 <th style="text-align:right;padding:10px 12px;font-size:11px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;color:#9aa0aa;border-bottom:1px solid #e6e8ec;white-space:nowrap">План 2026</th>
 <th style="text-align:right;padding:10px 12px;font-size:11px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;color:#9aa0aa;border-bottom:1px solid #e6e8ec;white-space:nowrap">Установлено</th>
 <th style="text-align:right;padding:10px 12px;font-size:11px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;color:#9aa0aa;border-bottom:1px solid #e6e8ec;white-space:nowrap">Активировано</th>
-<th style="text-align:right;padding:10px 12px;font-size:11px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;color:#9aa0aa;border-bottom:1px solid #e6e8ec;white-space:nowrap">За период</th>
+
 <th style="text-align:right;padding:10px 12px;font-size:11px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;color:#9aa0aa;border-bottom:1px solid #e6e8ec;white-space:nowrap">С завода</th>
 <th style="text-align:right;padding:10px 12px;font-size:11px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;color:#9aa0aa;border-bottom:1px solid #e6e8ec;white-space:nowrap">По документам</th>
 <th style="text-align:right;padding:10px 12px;font-size:11px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;color:#9aa0aa;border-bottom:1px solid #e6e8ec;white-space:nowrap">Остаток склада</th>
@@ -243,7 +248,7 @@ input[type=date]{font-family:inherit}
 <td style="padding:14px 12px;border-bottom:1px solid #eef0f3;text-align:right;color:#6e7480">{{ r.plan2026 }}</td>
 <td style="padding:14px 12px;border-bottom:1px solid #eef0f3;text-align:right;font-weight:700">{{ r.installed }}</td>
 <td style="padding:14px 12px;border-bottom:1px solid #eef0f3;text-align:right;color:oklch(0.52 0.13 155);font-weight:700">{{ r.activated }}</td>
-<td style="padding:14px 12px;border-bottom:1px solid #eef0f3;text-align:right">{{ r.period }}</td>
+
 <td style="padding:14px 12px;border-bottom:1px solid #eef0f3;text-align:right;color:#6e7480">{{ r.accepted }}</td>
 <td style="padding:14px 12px;border-bottom:1px solid #eef0f3;text-align:right;color:#6e7480">{{ r.acceptedByDoc }}</td>
 <td style="padding:14px 12px;border-bottom:1px solid #eef0f3;text-align:right;color:#6e7480">{{ r.stock }}</td>
@@ -471,7 +476,7 @@ class Component extends DCLogic {
       paceGapNote: "Отрыв " + fmt.format(Math.round(Math.abs(s.recommendedPace - s.avgPace10))) + " шт./день · рабочих дней до конца года: " + s.workingDaysLeft,
       activated: fmt.format(s.activated),
       activatedNote: "в базе MMS · " + pct(s.installed ? (s.activated / s.installed) * 100 : 0, 0) + " от установленных",
-      toInstall: fmt.format(s.toInstallTotal),
+      toInstall: fmt.format(s.toInstallTotal),\n      equralTotal: fmt.format(s.equralTotal || 0),
       accepted: fmt.format(s.accepted),
       acceptedByDoc: fmt.format(s.acceptedByDoc),
       acceptedByDocPct: (s.accepted ? Math.min((s.acceptedByDoc / s.accepted) * 100, 100) : 0).toFixed(1),
