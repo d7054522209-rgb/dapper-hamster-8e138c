@@ -41,6 +41,37 @@ DB = {
     "password": "da%bDK#!M,P4On5",
 }
 
+# БД MMS (MySQL) — источник «Активировано» и «К установке»
+DB_MMS = {
+    "host": "10.20.38.49",
+    "port": 3306,
+    "database": "device_life",
+    "user": "device_life",
+    "password": "Device!2026@Halifel#%",
+}
+
+# Коды статусов устройства в dl_device.device_status
+MMS_STATUS = {
+    "stock": "1",       # На складе
+    "toInstall": "2",   # К установке
+    "installed": "3",   # Установлен (= активировано в базе)
+    "removed": "4",     # Демонтирован
+    "returned": "5",    # Возврат на завод
+    "checked": "6",     # Поверено
+}
+# region_code (KATO) → регион
+MMS_REGION = {"79": "shymkent", "61": "turkestan", "43": "kyzylorda"}
+
+# e-Qural API — количество активированных приборов
+EQURAL_API_URL = ("https://equral.ktga.kz/api/metering-system/"
+                  "MeteringDeviceService/GetActivatedCount")
+EQURAL_API_KEY = "siUJOyOFK3ownp5JqdxgqRq7ICZRwwPybCpKkMbxnpFGOqpZZQQpw6X2xiVUeipD"
+EQURAL_REGION_ID = {
+    "shymkent":  "58476cad-2855-46d9-a53d-fc198c49831e",
+    "turkestan": "c66c2de2-68ca-464d-aa65-c6a96b67360e",
+    "kyzylorda": "9943fdcc-0e48-48f3-99ef-b105aa162482",
+}
+
 # Google Sheets — экспорт всей книги в xlsx (тянет ВСЕ листы разом)
 SHEET_INSTALL_ID = "1nrzWmjIK2JFCKT3RTxt5lIj0LupGvF60"   # Ежедневный отчёт по установке
 SHEET_WAREHOUSE_ID = "10zFs4L6llvm39kOwStzCvZpeg2SY5g6o"  # Склад
@@ -56,7 +87,7 @@ WAREHOUSE_CSV_URL = (
 
 REPO_DIR = "~/Documents/dapper-hamster-8e138c"
 INDEX_FILE = "index.html"
-TEMPLATE_FILE = "template.html"   # HTML с плейсхолдером __DATA_PLACEHOLDER__
+TEMPLATE_FILE = "template.html"   # standalone-дизайн с window.__DASH_DATA
 
 PROJECT_START = date(2026, 4, 22)
 YEAR_END = date(2026, 12, 31)
@@ -311,53 +342,58 @@ def fetch_warehouse():
 # ──────────────────────────────────────────────────────────────
 
 def fetch_platform():
-    print("→ Подключаюсь к БД e-Qural…")
+    """Активировано — через e-Qural API GetActivatedCount.
+       К установке — из БД MMS (device_status='2')."""
+    # ── 1. Активировано (e-Qural API) ──
+    print("→ Запрашиваю активированные (e-Qural API)…")
+    activated = {"shymkent": 0, "turkestan": 0, "kyzylorda": 0}
+    headers = {"X-Api-Key": EQURAL_API_KEY, "Content-Type": "application/json"}
     try:
-        import psycopg2
-    except ModuleNotFoundError:
-        die("нет psycopg2 — pip install --break-system-packages psycopg2-binary")
-    try:
-        conn = psycopg2.connect(connect_timeout=15, **DB)
+        for en, rid in EQURAL_REGION_ID.items():
+            r = requests.post(EQURAL_API_URL, headers=headers,
+                              json={"regionId": rid,
+                                    "dateFrom": PROJECT_START.isoformat()},
+                              timeout=30)
+            r.raise_for_status()
+            activated[en] = int(r.json().get("count", 0))
     except Exception as e:
-        die(f"БД недоступна (VPN поднят?): {e}")
+        die(f"e-Qural API недоступен (ключ верный? VPN?): {e}")
+    act_total = sum(activated.values())
 
-    sql_activated = """
-    SELECT r."NameRu" AS region,
-           COUNT(*) FILTER (WHERE md."CommunicationStatus" = 0) AS online,
-           COUNT(*) AS activated
-    FROM "MeteringDevices" md
-    JOIN "DicRegions" r ON r."Id" = md."RegionId"
-    WHERE md."IsDeleted" = false
-      AND r."Code" IN ('79','61','43')
-      AND md."IsHasActivatedAtLeastOnce" = true
-      AND md."DateCreate" >= %(start)s
-    GROUP BY r."NameRu";
-    """
-    sql_equral_total = 'SELECT COUNT(*) FROM "MeteringDevices" WHERE "IsDeleted" = false;'
+    # ── 2. К установке (БД MMS, device_status='2') ──
+    print("→ Подключаюсь к БД MMS…")
+    try:
+        import pymysql
+    except ModuleNotFoundError:
+        die("нет pymysql — pip install --break-system-packages pymysql")
+    try:
+        conn = pymysql.connect(connect_timeout=15, **DB_MMS)
+    except Exception as e:
+        die(f"БД MMS недоступна (VPN?): {e}")
 
+    to_install = {"shymkent": 0, "turkestan": 0, "kyzylorda": 0}
     try:
         cur = conn.cursor()
-        cur.execute(sql_activated, {"start": PROJECT_START.isoformat()})
-        rows = cur.fetchall()
-        cur.execute(sql_equral_total)
-        equral_total = cur.fetchone()[0]
+        cur.execute(
+            "SELECT region_code, COUNT(*) FROM dl_device "
+            "WHERE device_status = %s GROUP BY region_code",
+            (MMS_STATUS["toInstall"],))
+        for region_code, cnt in cur.fetchall():
+            en = MMS_REGION.get(str(region_code))
+            if en:
+                to_install[en] = int(cnt)
     except Exception as e:
-        die(f"SQL упал: {e}")
+        die(f"SQL MMS упал: {e}")
     finally:
         conn.close()
+    to_install_total = sum(to_install.values())
 
-    activated = {"shymkent": 0, "turkestan": 0, "kyzylorda": 0}
+    print(f"  ✓ активировано {fmt(act_total)}, к установке {fmt(to_install_total)}")
+    # online пока не считаем отдельно (нет источника) — 0
     online = {"shymkent": 0, "turkestan": 0, "kyzylorda": 0}
-    for region, onl, act in rows:
-        en = RU2EN.get(region)
-        if en:
-            activated[en] = int(act)
-            online[en] = int(onl)
-
-    act_total = sum(activated.values())
-    print(f"  ✓ активировано {fmt(act_total)}, e-Qural всего {fmt(equral_total)}")
     return {"activated": activated, "online": online,
-            "activated_total": act_total, "equral_total": int(equral_total)}
+            "activated_total": act_total,
+            "toInstall": to_install, "toInstall_total": to_install_total}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -479,7 +515,6 @@ def build_data(inst, wh, plat):
 
     summary = {
         "generatedAt": ru_date(today),
-        "equralTotal": plat["equral_total"],
         "installed": total,
         "activated": plat["activated_total"],
         "online": online_total,
@@ -489,7 +524,7 @@ def build_data(inst, wh, plat):
         "acceptedByDoc": wt["acceptedByDoc"],
         "totalPaidAmount": wt["paid"],
         "stockRemaining": wt["acceptedByDoc"] - total,
-        "toInstallTotal": wt["toField"],
+        "toInstallTotal": plat["toInstall_total"],
         "plan2026Presentation": 199000,
         "phase1PlanPresentation": PHASE1_PLAN,
         "totalProgramPlan": TOTAL_PROGRAM_PLAN,
@@ -531,39 +566,39 @@ def build_data(inst, wh, plat):
 # ──────────────────────────────────────────────────────────────
 
 def render(data, repo_dir):
-    import os
+    """Standalone-дизайн читает window.__DASH_DATA из
+       <script src="data:text/javascript;base64,...">. Пересобираем этот блок."""
+    import os, base64
     tpl_path = os.path.join(os.path.expanduser(repo_dir), TEMPLATE_FILE)
     if not os.path.exists(tpl_path):
-        # fallback: взять текущий index.html как шаблон
-        tpl_path = os.path.join(os.path.expanduser(repo_dir), INDEX_FILE)
-        if not os.path.exists(tpl_path):
-            die(f"нет ни {TEMPLATE_FILE}, ни {INDEX_FILE} в {repo_dir}")
-        with open(tpl_path, encoding="utf-8") as f:
-            html = f.read()
-        html = re.sub(r"const DATA = \{.*?\};", "const DATA = __DATA_PLACEHOLDER__;",
-                      html, flags=re.DOTALL)
-    else:
-        with open(tpl_path, encoding="utf-8") as f:
-            html = f.read()
+        die(f"нет шаблона {TEMPLATE_FILE} в {repo_dir}")
+    with open(tpl_path, encoding="utf-8") as f:
+        html = f.read()
 
     payload = json.dumps(data, ensure_ascii=False)
-    if "__DATA_PLACEHOLDER__" in html:
-        html = html.replace("__DATA_PLACEHOLDER__", payload)
-    else:
-        html = re.sub(r"const DATA = \{.*?\};", f"const DATA = {payload};",
-                      html, count=1, flags=re.DOTALL)
+    js = f"window.__DASH_DATA = {payload};"
+    b64 = base64.b64encode(js.encode("utf-8")).decode("ascii")
 
-    # sanity check
-    m = re.search(r"const DATA = (\{.*?\});", html, flags=re.DOTALL)
+    new_src = f'src="data:text/javascript;base64,{b64}"'
+    html2, n = re.subn(
+        r'src="data:text/javascript;base64,[A-Za-z0-9+/=]+"',
+        new_src, html, count=1)
+    if n != 1:
+        die("не найден блок window.__DASH_DATA (data:base64) в шаблоне.")
+
+    # sanity: декодируем обратно и парсим
+    m = re.search(r'src="data:text/javascript;base64,([A-Za-z0-9+/=]+)"', html2)
+    dec = base64.b64decode(m.group(1)).decode("utf-8")
+    jm = re.search(r'window\.__DASH_DATA\s*=\s*(\{.*\});?$', dec, re.DOTALL)
     try:
-        json.loads(m.group(1))
+        json.loads(jm.group(1).rstrip(";"))
     except Exception as e:
-        die(f"DATA не парсится как JSON после сборки: {e}")
+        die(f"DASH_DATA не парсится после сборки: {e}")
 
     out_path = os.path.join(os.path.expanduser(repo_dir), INDEX_FILE)
     with open(out_path, "w", encoding="utf-8") as f:
-        f.write(html)
-    print(f"  ✓ {INDEX_FILE} собран ({len(html):,} байт)".replace(",", " "))
+        f.write(html2)
+    print(f"  ✓ {INDEX_FILE} собран ({len(html2):,} байт)".replace(",", " "))
     return out_path
 
 
