@@ -344,21 +344,11 @@ def fetch_warehouse():
 def fetch_platform():
     """Активировано — через e-Qural API GetActivatedCount.
        К установке — из БД MMS (device_status='2')."""
-    # ── 1. Активировано (e-Qural API) ──
-    print("→ Запрашиваю активированные (e-Qural API)…")
+    # ── 1. Активировано (e-Qural API) — ВРЕМЕННО ОТКЛЮЧЕНО ──
+    # Сеть: equral.ktga.kz (10.20.14.10) недоступен с VPN-сегмента,
+    # ждём открытие доступа от сетевого инженера QGA. Пока activated = 0.
     activated = {"shymkent": 0, "turkestan": 0, "kyzylorda": 0}
-    headers = {"X-Api-Key": EQURAL_API_KEY, "Content-Type": "application/json"}
-    try:
-        for en, rid in EQURAL_REGION_ID.items():
-            r = requests.post(EQURAL_API_URL, headers=headers,
-                              json={"regionId": rid,
-                                    "dateFrom": PROJECT_START.isoformat()},
-                              timeout=30)
-            r.raise_for_status()
-            activated[en] = int(r.json().get("count", 0))
-    except Exception as e:
-        die(f"e-Qural API недоступен (ключ верный? VPN?): {e}")
-    act_total = sum(activated.values())
+    act_total = 0
 
     # ── 2. К установке (БД MMS, device_status='2') ──
     print("→ Подключаюсь к БД MMS…")
