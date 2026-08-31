@@ -211,14 +211,36 @@ def fetch_installs():
     installed = {}
     plan_by_reg = {}
     row_map = {7: "shymkent", 8: "turkestan", 9: "kyzylorda"}
+    ok = True
     for r, en in row_map.items():
         name = ws.cell(r, 3).value
         if not name or PF2EN.get(str(name).strip()) != en:
-            die(f"структура отчёта изменилась: строка {r} должна быть ПФ '{en}', "
-                f"а там '{name}'. Проверь лист «Ввод данных».")
+            ok = False
+            break
         installed[en] = clean_num(ws.cell(r, 6).value)   # Всего установлено
         plan_by_reg[en] = clean_num(ws.cell(r, 7).value)  # План 2026
     total_installed = sum(installed.values())
+
+    # Fallback: если «Ввод данных» пуст/сломан — берём из «Свод для руководства»
+    if not ok or total_installed == 0:
+        if "Свод для руководства" not in wb.sheetnames:
+            die("«Ввод данных» пуст и нет листа «Свод для руководства».")
+        sv = wb["Свод для руководства"]
+        installed = {}
+        plan_by_reg = {}
+        # строки ПФ ищем по названию в колонке B (2)
+        found = {}
+        for r in range(1, sv.max_row + 1):
+            nm = sv.cell(r, 2).value
+            en = PF2EN.get(str(nm).strip()) if nm else None
+            if en:
+                installed[en] = clean_num(sv.cell(r, 5).value)   # Всего
+                plan_by_reg[en] = clean_num(sv.cell(r, 6).value)  # План 2026
+                found[en] = True
+        if len(found) != 3:
+            die(f"не нашёл все 3 ПФ в «Свод для руководства» (нашёл: {list(found)}).")
+        total_installed = sum(installed.values())
+        print("  (взято из листа «Свод для руководства»)")
 
     if total_installed == 0:
         die("сумма установок = 0, проверь отчёт.")
