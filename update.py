@@ -257,25 +257,38 @@ def fetch_installs():
     else:
         as_of = date.today()
 
-    # ── Daily август: все три ПФ из блока «Ввод данных» (cols G/H/I) ──
-    # Единый источник, чтобы регионы были синхронны (листы ШПФ/КПФ отстают
-    # по датам и рассинхронизируют график). Формат блока:
+    # ── Daily август: объединяем два блока «Ввод данных» ──
+    # Старый блок (cols F-I): вся история, но может отставать.
     #   col F = дата, G = Шымкент, H = Туркестан, I = Кызылорда
-    daily_aug = []
-    for r in range(17, 60):
-        d = ws.cell(r, 6).value   # col F — дата
+    # Новый блок «за последние 5 дней» (cols B-E): свежие дни.
+    #   col B = дата, C = Шымкент, D = Туркестан, E = Кызылорда
+    # Свежий блок имеет приоритет (перекрывает совпадающие даты).
+    daily_map = {}   # date_str -> {shymkent, turkestan, kyzylorda}
+
+    # 1) старый блок F-I
+    for r in range(1, 200):
+        d = ws.cell(r, 6).value   # col F
         if not isinstance(d, datetime):
             continue
-        sh = clean_num(ws.cell(r, 7).value)   # G
-        tu = clean_num(ws.cell(r, 8).value)   # H
-        ky = clean_num(ws.cell(r, 9).value)   # I
+        sh = clean_num(ws.cell(r, 7).value)
+        tu = clean_num(ws.cell(r, 8).value)
+        ky = clean_num(ws.cell(r, 9).value)
         if sh or tu or ky:
-            daily_aug.append({
-                "date": str(d.date()),
-                "shymkent": sh,
-                "turkestan": tu,
-                "kyzylorda": ky,
-            })
+            daily_map[str(d.date())] = {"shymkent": sh, "turkestan": tu, "kyzylorda": ky}
+
+    # 2) новый блок B-E (приоритетный) — ищем заголовок «Дата» в колонке B,
+    #    ниже читаем дату(B)/Ш(C)/Т(D)/К(E)
+    for r in range(1, 200):
+        b = ws.cell(r, 2).value   # col B
+        if not isinstance(b, datetime):
+            continue
+        sh = clean_num(ws.cell(r, 3).value)   # C
+        tu = clean_num(ws.cell(r, 4).value)   # D
+        ky = clean_num(ws.cell(r, 5).value)   # E
+        if sh or tu or ky:
+            daily_map[str(b.date())] = {"shymkent": sh, "turkestan": tu, "kyzylorda": ky}
+
+    daily_aug = [{"date": k, **v} for k, v in sorted(daily_map.items())]
 
     print(f"  ✓ установлено {fmt(total_installed)} "
           f"(ШПФ {fmt(installed['shymkent'])}, ТПФ {fmt(installed['turkestan'])}, "
