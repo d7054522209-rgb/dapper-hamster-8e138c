@@ -447,9 +447,10 @@ def build_data(inst, wh, plat, equral_total=0):
         inst_n = installed[en]
         w = wh[en]
         rp = REGIONAL_PLANS[ru]
-        stock_remain = w["acceptedByDoc"] - inst_n           # ТЗ п.3: Принято − Факт всего
-        fill_base = w["accepted"] - w["toField"]             # ТЗ п.4
-        fill_pct = round(fill_base / CAPACITY[en] * 100, 2) if CAPACITY[en] else 0.0
+        # Остаток на складе = Отправлено с завода − Установлено (формула Дамира)
+        stock_remain = w["accepted"] - inst_n
+        # % загрузки = остаток / ёмкость
+        fill_pct = round(stock_remain / CAPACITY[en] * 100, 2) if CAPACITY[en] else 0.0
         regional.append({
             "region": ru,
             "installed": inst_n,
