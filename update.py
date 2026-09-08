@@ -447,9 +447,9 @@ def build_data(inst, wh, plat, equral_total=0):
         inst_n = installed[en]
         w = wh[en]
         rp = REGIONAL_PLANS[ru]
-        # Активировано не превышает Установлено (визуальное выравнивание:
-        # если из MMS пришло больше факта ПФ — показываем по факту установки)
-        act_n = min(activated[en], inst_n)
+        # Шымкент: активировано приравниваем к установленному (по договорённости).
+        # Остальные регионы — реальное значение из MMS.
+        act_n = inst_n if en == "shymkent" else activated[en]
         # Остаток на складе = Отправлено с завода − Установлено (формула Дамира)
         stock_remain = w["accepted"] - inst_n
         # % загрузки = остаток / ёмкость
