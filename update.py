@@ -447,6 +447,9 @@ def build_data(inst, wh, plat, equral_total=0):
         inst_n = installed[en]
         w = wh[en]
         rp = REGIONAL_PLANS[ru]
+        # Активировано не превышает Установлено (визуальное выравнивание:
+        # если из MMS пришло больше факта ПФ — показываем по факту установки)
+        act_n = min(activated[en], inst_n)
         # Остаток на складе = Отправлено с завода − Установлено (формула Дамира)
         stock_remain = w["accepted"] - inst_n
         # % загрузки = остаток / ёмкость
@@ -454,7 +457,7 @@ def build_data(inst, wh, plat, equral_total=0):
         regional.append({
             "region": ru,
             "installed": inst_n,
-            "activated": activated[en],
+            "activated": act_n,
             "online": online[en],
             "offline": inst_n - online[en],
             "availability": round(online[en] / inst_n * 100, 2) if inst_n else 0.0,
@@ -468,6 +471,11 @@ def build_data(inst, wh, plat, equral_total=0):
             "phasePlan": rp["phasePlan"],
             "progress2026": round(inst_n / rp["plan2026"] * 100, 2) if rp["plan2026"] else 0.0,
         })
+
+    # Пересчёт общего «Активировано» как суммы по регионам (с учётом capping),
+    # чтобы плитка Уровня 1 совпадала с итогом таблицы.
+    activated_total_capped = sum(r["activated"] for r in regional)
+    plat["activated_total"] = activated_total_capped
 
     # ── Daily: история (апр-июл) + август из отчёта ──
     daily = []
