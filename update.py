@@ -497,6 +497,10 @@ def build_data(inst, wh, plat, equral_total=0):
         if regions:
             daily.append({"date": a["date"], "label": ru_date(d), "regions": regions})
 
+    # Последний день с данными в daily — по нему рисуется график и берётся
+    # «Установлено за день» (может быть свежее даты актуализации в файле).
+    last_daily_date = daily[-1]["date"] if daily else str(as_of)
+
     # ── Месячный план vs факт ──
     monthly_facts = {}
     for entry in daily:
@@ -570,7 +574,7 @@ def build_data(inst, wh, plat, equral_total=0):
         "progress2026": round(total / PLAN_2026 * 100, 2),
         "progressPhase1": round(total / PHASE1_PLAN * 100, 2),
         "minDate": str(PROJECT_START),
-        "maxDate": str(as_of),
+        "maxDate": last_daily_date,
         "delayDays": (as_of - PROJECT_START).days,
         "planToCurrentMonth": PLAN_TO_AUG,
         "lagToCurrentMonth": lag,
