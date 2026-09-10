@@ -59,8 +59,17 @@ MMS_STATUS = {
     "returned": "5",    # Возврат на завод
     "checked": "6",     # Поверено
 }
-# region_code (KATO) → регион
+# region_code (KATO) → регион (пилотные три)
 MMS_REGION = {"79": "shymkent", "61": "turkestan", "43": "kyzylorda"}
+
+# Полный справочник KATO для прочих регионов (название по коду)
+KATO_NAMES = {
+    "15": "Актобе", "19": "Талдыкорган", "23": "Атырау", "27": "Уральск",
+    "31": "Тараз", "35": "Караганда", "39": "Костанай", "43": "Кызылорда",
+    "47": "Актау", "61": "Туркестан", "63": "Зайсан", "71": "Астана",
+    "79": "Шымкент",
+}
+PILOT_CODES = {"43", "61", "79"}   # пилотные филиалы
 
 # e-Qural API — количество активированных приборов
 EQURAL_API_URL = ("https://equral.ktga.kz/api/metering-system/"
@@ -413,16 +422,69 @@ def fetch_platform():
             en = MMS_REGION.get(str(region_code))
             if en:
                 to_install[en] = int(cnt)
+
+        # ── Активации по дням (device_status='3', по дате install_date, регион) ──
+        act_daily = {}   # date_str -> {shymkent, turkestan, kyzylorda}
+        cur.execute(
+            "SELECT DATE(install_date) AS d, region_code, COUNT(*) "
+            "FROM dl_device "
+            "WHERE device_status = %s AND install_date IS NOT NULL "
+            "  AND region_code IS NOT NULL "
+            "GROUP BY DATE(install_date), region_code",
+            (MMS_STATUS["installed"],))
+        for d, region_code, cnt in cur.fetchall():
+            en = MMS_REGION.get(str(region_code))
+            if not en or d is None:
+                continue
+            ds = d.isoformat() if hasattr(d, "isoformat") else str(d)
+            act_daily.setdefault(ds, {"shymkent": 0, "turkestan": 0, "kyzylorda": 0})
+            act_daily[ds][en] = int(cnt)
+
+        # ── Прочие регионы (device_status='3', region_code НЕ пилотный) ──
+        other_totals = {}   # region_name -> кол-во
+        cur.execute(
+            "SELECT region_code, COUNT(*) FROM dl_device "
+            "WHERE device_status = %s AND region_code IS NOT NULL "
+            "GROUP BY region_code",
+            (MMS_STATUS["installed"],))
+        for region_code, cnt in cur.fetchall():
+            rc = str(region_code)
+            if rc in PILOT_CODES:
+                continue
+            name = KATO_NAMES.get(rc, f"Регион {rc}")
+            other_totals[name] = other_totals.get(name, 0) + int(cnt)
+
+        # ── Прочие регионы по дням (для их графика) ──
+        other_daily = {}   # date_str -> {region_name: cnt}
+        cur.execute(
+            "SELECT DATE(install_date) AS d, region_code, COUNT(*) "
+            "FROM dl_device "
+            "WHERE device_status = %s AND install_date IS NOT NULL "
+            "  AND region_code IS NOT NULL "
+            "GROUP BY DATE(install_date), region_code",
+            (MMS_STATUS["installed"],))
+        for d, region_code, cnt in cur.fetchall():
+            rc = str(region_code)
+            if rc in PILOT_CODES or d is None:
+                continue
+            name = KATO_NAMES.get(rc, f"Регион {rc}")
+            ds = d.isoformat() if hasattr(d, "isoformat") else str(d)
+            other_daily.setdefault(ds, {})
+            other_daily[ds][name] = other_daily[ds].get(name, 0) + int(cnt)
     except Exception as e:
         die(f"SQL MMS упал: {e}")
     finally:
         conn.close()
 
-    print(f"  ✓ активировано {fmt(act_total)}, к установке {fmt(to_install_total)}")
+    other_total = sum(other_totals.values())
+    print(f"  ✓ активировано {fmt(act_total)}, к установке {fmt(to_install_total)}, "
+          f"прочие регионы: {len(other_totals)} ({fmt(other_total)})")
     online = {"shymkent": 0, "turkestan": 0, "kyzylorda": 0}
     return {"activated": activated, "online": online,
             "activated_total": act_total,
-            "toInstall": to_install, "toInstall_total": to_install_total}
+            "toInstall": to_install, "toInstall_total": to_install_total,
+            "act_daily": act_daily,
+            "other_totals": other_totals, "other_daily": other_daily}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -488,12 +550,18 @@ def build_data(inst, wh, plat, equral_total=0):
         if regions:
             daily.append({"date": h["date"], "label": ru_date(d), "regions": regions})
 
+    act_daily = plat.get("act_daily", {})
+
     for a in inst["daily_aug"]:
         d = date.fromisoformat(a["date"])
         regions = {}
+        ad = act_daily.get(a["date"], {})
         for en in ("shymkent", "turkestan", "kyzylorda"):
-            if a[en] > 0:
-                regions[EN2RU[en]] = {"installed": a[en], "online": a[en], "offline": 0}
+            inst_v = a[en]
+            act_v = ad.get(en, 0)
+            if inst_v > 0 or act_v > 0:
+                regions[EN2RU[en]] = {"installed": inst_v, "activated": act_v,
+                                      "online": inst_v, "offline": 0}
         if regions:
             daily.append({"date": a["date"], "label": ru_date(d), "regions": regions})
 
@@ -593,6 +661,20 @@ def build_data(inst, wh, plat, equral_total=0):
     print(f"  ✓ installed={fmt(total)} activated={fmt(plat['activated_total'])} "
           f"lag={fmt(lag)} pace={avg_pace} forecast={forecast_date_str}")
 
+    # ── Прочие регионы: список + по дням для их графика ──
+    other_totals = plat.get("other_totals", {})
+    other_regions = [{"region": name, "installed": cnt}
+                     for name, cnt in sorted(other_totals.items(),
+                                             key=lambda x: -x[1])]
+    other_daily_src = plat.get("other_daily", {})
+    other_daily = []
+    for ds in sorted(other_daily_src.keys()):
+        d = date.fromisoformat(ds)
+        regions = {name: {"installed": cnt}
+                   for name, cnt in other_daily_src[ds].items() if cnt > 0}
+        if regions:
+            other_daily.append({"date": ds, "label": ru_date(d), "regions": regions})
+
     return {
         "summary": summary,
         "regional": regional,
@@ -601,6 +683,8 @@ def build_data(inst, wh, plat, equral_total=0):
         "monthlyPlan": monthly_plan,
         "annualPlanFromMonthly": ANNUAL_SCHEDULE,
         "projectStatus": ps,
+        "otherRegions": other_regions,
+        "otherDaily": other_daily,
     }
 
 
@@ -710,6 +794,9 @@ def save_snapshot(inst, wh, plat):
         "activated_total": plat["activated_total"],
         "toInstall": plat["toInstall"],
         "toInstall_total": plat["toInstall_total"],
+        "act_daily": plat.get("act_daily", {}),
+        "other_totals": plat.get("other_totals", {}),
+        "other_daily": plat.get("other_daily", {}),
     }
     with open(_snapshot_path(), "w", encoding="utf-8") as f:
         json.dump(snap, f, ensure_ascii=False)
@@ -737,6 +824,9 @@ def load_snapshot():
             "activated_total": snap["activated_total"],
             "toInstall": snap["toInstall"],
             "toInstall_total": snap["toInstall_total"],
+            "act_daily": snap.get("act_daily", {}),
+            "other_totals": snap.get("other_totals", {}),
+            "other_daily": snap.get("other_daily", {}),
         }
         return inst, snap["wh"], plat
     except Exception:
