@@ -338,7 +338,36 @@ input[type=date]{font-family:inherit}
 <div style="flex:1;height:1px;background:#e6e8ec"></div>
 </div>
 
-<section style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch">
+<section style="display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start">
+<div style="background:#fff;border:1px solid #e6e8ec;border-radius:20px;padding:28px 30px 26px;display:flex;flex-direction:column;gap:22px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+<div style="font-size:15px;font-weight:700">Прогресс установки к годовому плану 2026</div>
+<div style="font-size:12px;color:#6e7480">план года: {{ annualPlan }} шт.</div>
+</div>
+<div style="display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap">
+<div style="font-size:64px;font-weight:800;letter-spacing:-2.4px;line-height:0.95">{{ installed }}</div>
+<div style="display:flex;flex-direction:column;gap:2px;padding-bottom:6px">
+<div style="font-size:26px;font-weight:800;color:oklch(0.55 0.13 250);letter-spacing:-0.5px">{{ progressPct }}</div>
+<div style="font-size:13px;color:#6e7480">установлено счётчиков</div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="position:relative;height:26px;background:#eef0f3;border-radius:8px;overflow:hidden">
+<div style="position:absolute;inset:0 auto 0 0;background:oklch(0.55 0.13 250);border-radius:8px;width: {{ barFactPct }}%"></div>
+<div style="position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,oklch(0.62 0.16 25 / 0.30) 0 6px,oklch(0.62 0.16 25 / 0.12) 6px 12px);left: {{ barFactPct }}%;width: {{ barLagPct }}%"></div>
+<div style="position:absolute;top:-3px;bottom:-3px;width:2px;background:#14171c;left: {{ barPlanPct }}%"></div>
+</div>
+<div style="display:flex;justify-content:space-between;font-size:12px;color:#6e7480;gap:12px">
+<div>факт {{ installed }}</div>
+<div style="font-weight:700;color:#14171c">{{ planToMonthLabel }}</div>
+<div>{{ annualPlan }}</div>
+</div>
+</div>
+<div style="font-size:12px;color:#6e7480;border-top:1px solid #eef0f3;padding-top:14px">{{ workingDaysNote }}</div>
+</div>
+</section>
+
+<section style="margin-top:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch">
 <div style="background:#fff;border:1px solid #e6e8ec;border-radius:20px;padding:26px 28px;display:flex;flex-direction:column;gap:10px;grid-column:1 / -1">
 <div style="font-size:13px;font-weight:700;color:#6e7480">Установлено всего</div>
 <div style="font-size:64px;font-weight:800;letter-spacing:-2.4px;line-height:0.95">{{ installed }}</div>
@@ -433,7 +462,7 @@ input[type=date]{font-family:inherit}
 
 <section style="margin-top:16px;background:#fff;border:1px solid #e6e8ec;border-radius:20px;padding:24px 26px 12px">
 <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:18px">
-<div style="font-size:16px;font-weight:800">Основные филиалы</div>
+<div style="font-size:16px;font-weight:800">Пилотные филиалы</div>
 <div style="font-size:13px;color:#6e7480">Три региона с планом 2026, поставкой и оплатой.</div>
 </div>
 <div style="overflow-x:auto;margin:0 -26px;padding:0 26px">
@@ -512,12 +541,11 @@ input[type=date]{font-family:inherit}
 
 <section style="margin-top:16px;background:#fff;border:1px solid #e6e8ec;border-radius:20px;padding:24px 26px">
 <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:20px">
-<div style="font-size:16px;font-weight:800">Прочие регионы</div>
-<div style="font-size:13px;color:#6e7480">Установки начались, план и склад пока не выделены.</div>
+<div style="font-size:16px;font-weight:800">Прочие филиалы</div>
 </div>
 
 <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:26px">
-<div style="font-size:13px;font-weight:700;color:#6e7480">Установка по дням — прочие регионы</div>
+<div style="font-size:13px;font-weight:700;color:#6e7480">Установка по дням — прочие филиалы</div>
 <div style="display:flex;gap:18px;flex-wrap:wrap">
 <sc-for list="{{ otherLegend }}" as="l" hint-placeholder-count="6">
 <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#4b5158"><span style="width:11px;height:11px;border-radius:3px;background: {{ l.color }}"></span>{{ l.region }}</div>
@@ -529,16 +557,35 @@ input[type=date]{font-family:inherit}
 <div>{{ otherAxisMid }}</div>
 <div>0</div>
 </div>
-<div style="flex:1;min-width:0">
-<div style="display:flex;align-items:flex-end;gap:10px;height:190px;border-bottom:1px solid #dfe2e7;background:linear-gradient(to bottom,#eef0f3 1px,transparent 1px) 0 0/100% 50%">
+<div style="flex:1;min-width:0;position:relative">
+<div onMouseLeave="{{ clearOtherHover }}" style="position:relative;display:flex;align-items:flex-end;gap:10px;height:190px;border-bottom:1px solid #dfe2e7;background:linear-gradient(to bottom,#eef0f3 1px,transparent 1px) 0 0/100% 50%">
 <sc-for list="{{ otherBars }}" as="b" hint-placeholder-count="6">
-<div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;height:100%;gap:1px" title="{{ b.title }}">
+<div onMouseEnter="{{ b.onEnter }}" style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;height:100%;gap:1px;cursor:default;opacity: {{ b.opacity }}">
 <sc-for list="{{ b.parts }}" as="p" hint-placeholder-count="3">
 <div style="height: {{ p.h }}%;background: {{ p.color }}"></div>
 </sc-for>
 </div>
 </sc-for>
 </div>
+<sc-if value="{{ otherTip }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;top:8px;pointer-events:none;transform:translateX(-50%);left: {{ otherTip.left }}%">
+<div style="background:#14171c;color:#fff;border-radius:12px;padding:12px 14px;min-width:200px;box-shadow:0 12px 28px rgba(20,23,28,.22)">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.16)">
+<div style="font-size:12px;color:rgba(255,255,255,.62);font-weight:600">{{ otherTip.label }}</div>
+<div style="font-size:17px;font-weight:800;letter-spacing:-0.3px">{{ otherTip.total }}</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px;padding-top:9px">
+<sc-for list="{{ otherTip.rows }}" as="t" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:9px;font-size:12px">
+<span style="width:9px;height:9px;border-radius:3px;flex:none;background: {{ t.color }}"></span>
+<span style="flex:1;color:rgba(255,255,255,.72)">{{ t.region }}</span>
+<span style="font-weight:700">{{ t.value }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
 <div style="display:flex;gap:10px;margin-top:7px">
 <sc-for list="{{ otherBars }}" as="b" hint-placeholder-count="6">
 <div style="flex:1;min-width:0;font-size:11px;color:#9aa0aa;text-align:center;white-space:nowrap;overflow:hidden">{{ b.tick }}</div>
@@ -557,29 +604,15 @@ input[type=date]{font-family:inherit}
 </sc-for>
 </div>
 <div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding-top:14px;font-size:13px">
-<div style="color:#6e7480">Всего по прочим регионам</div>
+<div style="color:#6e7480">Всего по прочим филиалам</div>
 <div style="font-size:15px;font-weight:800;white-space:nowrap">{{ otherTotal }}</div>
 </div>
-</section>
-
-<section style="margin-top:16px;background:#fff;border:1px solid #e6e8ec;border-radius:16px;overflow:hidden">
-<div onClick="{{ toggleGlossary }}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 22px;cursor:pointer;user-select:none" style-hover="background:#fafbfc">
-<div style="font-size:14px;font-weight:700">Как читать дашборд</div>
-<div style="font-size:12px;color:#6e7480">{{ glossaryLabel }}</div>
-</div>
-<sc-if value="{{ glossaryOpen }}" hint-placeholder-val="{{ true }}">
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:2px;border-top:1px solid #eef0f3;background:#eef0f3">
-<div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Передано на установку</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">переданы монтажникам, ждут установки</div></div>
-<div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Установлено</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">приборы в базе MMS (статус «Установлен») по проекту Aqyl Energy</div></div>
-<div style="background:#fff;padding:16px 22px;display:flex;flex-direction:column;gap:5px"><div style="font-size:13px;font-weight:800">Прочие регионы</div><div style="font-size:13px;line-height:1.45;color:#6e7480;text-wrap:pretty">установки начались, но плана и отдельного склада пока нет (счётчики поступают перераспределением с пилотных филиалов)</div></div>
-</div>
-</sc-if>
 </section>
 
 <footer style="margin-top:28px;font-size:12px;line-height:1.5;color:#9aa0aa;max-width:760px;text-wrap:pretty">Источники: таблица установки приборов учёта (ПФ), база MMS (device_life), складская таблица. Дашборд содержит только агрегированные управленческие показатели.</footer>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;grouping&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;по дням&quot;,&quot;по неделям&quot;],&quot;default&quot;:&quot;по дням&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;График&quot;},&quot;glossaryOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Глоссарий&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;grouping&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;по дням&quot;,&quot;по неделям&quot;],&quot;default&quot;:&quot;по дням&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;График&quot;}}">
 const REGIONS = [
   { key: "город Шымкент", short: "Шымкент", color: "oklch(0.42 0.12 250)" },
   { key: "Туркестанская область", short: "Туркестанская область", color: "oklch(0.60 0.12 250)" },
@@ -591,7 +624,7 @@ const pct = (v, digits) => v.toFixed(digits == null ? 1 : digits).replace(".", "
 const MONTH_GEN = { "01": "январь", "02": "февраль", "03": "март", "04": "апрель", "05": "май", "06": "июнь", "07": "июль", "08": "август", "09": "сентябрь", "10": "октябрь", "11": "ноябрь", "12": "декабрь" };
 
 class Component extends DCLogic {
-  state = { data: null, from: "", to: "", glossaryOpen: this.props.glossaryOpen ?? true, hover: null };
+  state = { data: null, from: "", to: "", glossaryOpen: this.props.glossaryOpen ?? true, hover: null, otherHover: null };
 
   componentDidMount() {
     Promise.resolve({ DATA: window.__DASH_DATA }).then(m => {
@@ -614,13 +647,28 @@ class Component extends DCLogic {
     const totalOf = day => names.reduce((s, n) => s + ((day.regions[n] || {}).installed || 0), 0);
     const totals = days.map(totalOf);
     const max = Math.max(1, ...totals);
+    const hover = this.state.otherHover != null && this.state.otherHover < days.length ? this.state.otherHover : null;
+    let otherTip = null;
+    if (hover != null) {
+      const day = days[hover];
+      otherTip = {
+        label: day.label,
+        total: fmt.format(totals[hover]) + " шт.",
+        left: Math.max(12, Math.min(88, ((hover + 0.5) / days.length) * 100)).toFixed(1),
+        rows: names.filter(n => (day.regions[n] || {}).installed)
+          .map(n => ({ region: n, color: colorOf[n], value: fmt.format(day.regions[n].installed) }))
+      };
+    }
     return {
       otherLegend: names.map(n => ({ region: n, color: colorOf[n] })),
       otherAxisMax: fmt.format(max),
       otherAxisMid: fmt.format(Math.round(max / 2)),
+      otherTip,
+      clearOtherHover: () => this.setState({ otherHover: null }),
       otherBars: days.map((day, i) => ({
         tick: day.label.slice(0, 5),
-        title: day.label + " — " + fmt.format(totals[i]) + " шт.",
+        opacity: hover == null || hover === i ? 1 : 0.35,
+        onEnter: () => this.setState({ otherHover: i }),
         parts: names.filter(n => (day.regions[n] || {}).installed)
           .map(n => ({ color: colorOf[n], h: (((day.regions[n] || {}).installed || 0) / max * 100).toFixed(2) }))
       }))
@@ -732,7 +780,7 @@ class Component extends DCLogic {
     };
     const rows = ordered.map((r, i) => row(REGIONS[i].short, { ...r, __period: periodBy[r.region] || 0 }, 700));
     const sum = k => ordered.reduce((s, r) => s + (r[k] || 0), 0);
-    rows.push(row("Итого", {
+    rows.push(row("Итого по пилотным", {
       plan2026: sum("plan2026"), installed: sum("installed"), activated: sum("activated"),
       __period: periodTotal, accepted: sum("accepted"), acceptedByDoc: sum("acceptedByDoc"),
       stockRemaining: sum("stockRemaining"),
@@ -741,8 +789,10 @@ class Component extends DCLogic {
     }, 800));
 
     const s = d.summary;
+    const otherSum = (d.otherRegions || []).reduce((a, o) => a + o.installed, 0);
+    const installedAll = s.installed + otherSum;
     const annualPlan = s.annualPlan2026Monthly;
-    const progress = annualPlan ? (s.installed / annualPlan) * 100 : 0;
+    const progress = annualPlan ? (installedAll / annualPlan) * 100 : 0;
     const planPct = annualPlan ? Math.min((s.planToCurrentMonth / annualPlan) * 100, 100) : 0;
     const factPct = Math.min(progress, 100);
     const monthName = MONTH_GEN[(s.asOfMonthLabel || "").slice(0, 2)] || s.asOfMonthLabel;
@@ -752,7 +802,7 @@ class Component extends DCLogic {
     const level1 = {
       generatedAt: s.generatedAt,
       annualPlan: fmt.format(annualPlan),
-      installed: fmt.format(s.installed),
+      installed: fmt.format(installedAll),
       equralTotal: fmt.format(s.equralTotal),
       progressPct: pct(progress),
       barFactPct: factPct.toFixed(2),
@@ -766,6 +816,7 @@ class Component extends DCLogic {
       pace: fmt.format(Math.round(s.avgPace10)),
       pacePct: paceRatio.toFixed(1),
       neededPace: fmt.format(Math.round(s.recommendedPace)),
+      workingDaysNote: "Рабочих дней до конца года: " + s.workingDaysLeft,
       paceGapNote: "Отрыв " + fmt.format(Math.round(Math.abs(s.recommendedPace - s.avgPace10))) + " шт./день · рабочих дней до конца года: " + s.workingDaysLeft,
       planToMonth: fmt.format(s.planToCurrentMonth),
       planToMonthNote: "накопительно на " + monthName + " 2026",

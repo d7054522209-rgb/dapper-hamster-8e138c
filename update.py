@@ -494,32 +494,31 @@ def fetch_platform():
 def build_data(inst, wh, plat, equral_total=0):
     print("→ Считаю KPI…")
 
-    installed = inst["installed"]
-    total = inst["total_installed"]
+    installed = inst["installed"]         # из файла (для плана/сверки)
+    total_file = inst["total_installed"]
     as_of = inst["as_of"]
-    activated = plat["activated"]
+    activated = plat["activated"]         # из MMS (device_status=3) — ТЕПЕРЬ ИСТОЧНИК УСТАНОВОК
     online = plat["online"]
     online_total = sum(online.values())
     wt = wh["_total"]
 
-    # ── Региональный срез ──
+    # Установлено берём ИЗ MMS (единый источник). Общее — сумма всех регионов MMS.
+    total = plat["activated_total"] + sum(o for o in plat.get("other_totals", {}).values())
+
+    # ── Региональный срез (пилотные) — installed из MMS ──
     regional = []
     for en in ("kyzylorda", "turkestan", "shymkent"):
         ru = EN2RU[en]
-        inst_n = installed[en]
+        inst_n = activated[en]            # УСТАНОВЛЕНО = из MMS
         w = wh[en]
         rp = REGIONAL_PLANS[ru]
-        # Шымкент: активировано приравниваем к установленному (по договорённости).
-        # Остальные регионы — реальное значение из MMS.
-        act_n = inst_n if en == "shymkent" else activated[en]
         # Остаток на складе = Отправлено с завода − Установлено (формула Дамира)
         stock_remain = w["accepted"] - inst_n
-        # % загрузки = остаток / ёмкость
         fill_pct = round(stock_remain / CAPACITY[en] * 100, 2) if CAPACITY[en] else 0.0
         regional.append({
             "region": ru,
             "installed": inst_n,
-            "activated": act_n,
+            "activated": inst_n,
             "online": online[en],
             "offline": inst_n - online[en],
             "availability": round(online[en] / inst_n * 100, 2) if inst_n else 0.0,
@@ -534,39 +533,21 @@ def build_data(inst, wh, plat, equral_total=0):
             "progress2026": round(inst_n / rp["plan2026"] * 100, 2) if rp["plan2026"] else 0.0,
         })
 
-    # Пересчёт общего «Активировано» как суммы по регионам (с учётом capping),
-    # чтобы плитка Уровня 1 совпадала с итогом таблицы.
-    activated_total_capped = sum(r["activated"] for r in regional)
-    plat["activated_total"] = activated_total_capped
-
-    # ── Daily: история (апр-июл) + август из отчёта ──
+    # ── Daily: всё из MMS (act_daily), история + свежие дни ──
     daily = []
-    for h in HISTORICAL_DAILY:
-        d = date.fromisoformat(h["date"])
-        regions = {}
-        for en in ("shymkent", "turkestan", "kyzylorda"):
-            if h[en] > 0:
-                regions[EN2RU[en]] = {"installed": h[en], "online": h[en], "offline": 0}
-        if regions:
-            daily.append({"date": h["date"], "label": ru_date(d), "regions": regions})
-
     act_daily = plat.get("act_daily", {})
-
-    for a in inst["daily_aug"]:
-        d = date.fromisoformat(a["date"])
+    for ds in sorted(act_daily.keys()):
+        d = date.fromisoformat(ds)
         regions = {}
-        ad = act_daily.get(a["date"], {})
         for en in ("shymkent", "turkestan", "kyzylorda"):
-            inst_v = a[en]
-            act_v = ad.get(en, 0)
-            if inst_v > 0 or act_v > 0:
-                regions[EN2RU[en]] = {"installed": inst_v, "activated": act_v,
-                                      "online": inst_v, "offline": 0}
+            v = act_daily[ds].get(en, 0)
+            if v > 0:
+                regions[EN2RU[en]] = {"installed": v, "online": v, "offline": 0}
         if regions:
-            daily.append({"date": a["date"], "label": ru_date(d), "regions": regions})
+            daily.append({"date": ds, "label": ru_date(d), "regions": regions})
 
     # Последний день с данными в daily — по нему рисуется график и берётся
-    # «Установлено за день» (может быть свежее даты актуализации в файле).
+    # «Установлено за день».
     last_daily_date = daily[-1]["date"] if daily else str(as_of)
 
     # ── Месячный план vs факт ──
