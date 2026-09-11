@@ -976,19 +976,27 @@ class Component extends DCLogic {
     try {
       var EVT = { onmouseenter: 'mouseenter', onmouseleave: 'mouseleave',
                   onclick: 'click', onmouseover: 'mouseover', onmouseout: 'mouseout',
-                  onchange: 'change', oninput: 'input' };
+                  onchange: 'change', oninput: 'input', onfocus: 'focus', onblur: 'blur' };
       var all = this.__mount.querySelectorAll('*');
       for (var i = 0; i < all.length; i++) {
         var el = all[i];
-        if (!el.attributes) continue;
-        for (var j = el.attributes.length - 1; j >= 0; j--) {
-          var a = el.attributes[j];
-          var mm = /^__DCFN_(\d+)__$/.exec(a.value || '');
+        if (!el.attributes || !el.attributes.length) continue;
+        // снимок атрибутов (коллекция живая — снимаем копию до изменений)
+        var snap = [];
+        for (var j = 0; j < el.attributes.length; j++) {
+          snap.push({ name: el.attributes[j].name, value: el.attributes[j].value });
+        }
+        for (var k = 0; k < snap.length; k++) {
+          var mm = /^__DCFN_(\d+)__$/.exec(snap[k].value || '');
           if (!mm) continue;
           var fn = __fnStore[+mm[1]];
-          var ev = EVT[a.name.toLowerCase()];
-          el.removeAttribute(a.name);
-          if (fn && ev) el.addEventListener(ev, fn);
+          var ev = EVT[snap[k].name.toLowerCase()];
+          el.removeAttribute(snap[k].name);
+          if (fn && ev) {
+            (function (element, handler, evName) {
+              element.addEventListener(evName, handler);
+            })(el, fn, ev);
+          }
         }
       }
     } catch (e) { console.error('bind error:', e); }
