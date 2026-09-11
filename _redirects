@@ -1,0 +1,8 @@
+# Внутренний редирект (со старой страницы на новую)
+# /old-page    /new-page    301
+
+# Редирект на другой сайт
+/AE        https://aqyl-dashboard.helpify.kz/    301
+
+# Перенаправление всех запросов на index.html (для SPA на React/Vue)
+# /*           /index.html    200
