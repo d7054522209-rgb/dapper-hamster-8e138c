@@ -428,7 +428,7 @@ input[type=date]{font-family:inherit}
 </div>
 </sc-for>
 </div>
-<sc-if value="{{ tip }}" hint-placeholder-val="{{ false }}">
+<div data-tip-host><sc-if value="{{ tip }}" hint-placeholder-val="{{ false }}">
 <div style="position:absolute;top:8px;pointer-events:none;transform:translateX(-50%);left: {{ tip.left }}%">
 <div style="background:#14171c;color:#fff;border-radius:12px;padding:12px 14px;min-width:210px;box-shadow:0 12px 28px rgba(20,23,28,.22)">
 <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.16)">
@@ -446,7 +446,7 @@ input[type=date]{font-family:inherit}
 </div>
 </div>
 </div>
-</sc-if>
+</sc-if></div>
 <div style="display:flex;gap:2px;margin-top:7px">
 <sc-for list="{{ bars }}" as="bar" hint-placeholder-count="40">
 <div style="flex:1;min-width:0;font-size:10px;color:#9aa0aa;text-align:center;white-space:nowrap;overflow:hidden">{{ bar.tick }}</div>
@@ -568,7 +568,7 @@ input[type=date]{font-family:inherit}
 </div>
 </sc-for>
 </div>
-<sc-if value="{{ otherTip }}" hint-placeholder-val="{{ false }}">
+<div data-tip-host><sc-if value="{{ otherTip }}" hint-placeholder-val="{{ false }}">
 <div style="position:absolute;top:8px;pointer-events:none;transform:translateX(-50%);left: {{ otherTip.left }}%">
 <div style="background:#14171c;color:#fff;border-radius:12px;padding:12px 14px;min-width:200px;box-shadow:0 12px 28px rgba(20,23,28,.22)">
 <div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.16)">
@@ -586,7 +586,7 @@ input[type=date]{font-family:inherit}
 </div>
 </div>
 </div>
-</sc-if>
+</sc-if></div>
 <div style="display:flex;gap:10px;margin-top:7px">
 <sc-for list="{{ otherBars }}" as="b" hint-placeholder-count="6">
 <div style="flex:1;min-width:0;font-size:11px;color:#9aa0aa;text-align:center;white-space:nowrap;overflow:hidden">{{ b.tick }}</div>
@@ -938,8 +938,30 @@ class Component extends DCLogic {
   function DCLogic(props) { this.props = props || {}; this.state = {}; }
   DCLogic.prototype.setState = function (patch) {
     var next = typeof patch === 'function' ? patch(this.state) : patch;
+    var keys = Object.keys(next);
+    var onlyHover = keys.length > 0 && keys.every(function (k) {
+      return k === 'hover' || k === 'otherHover';
+    });
     for (var k in next) this.state[k] = next[k];
+    if (onlyHover && this.__updateTips) { this.__updateTips(); return; }
     this.__rerender();
+  };
+
+  // Точечное обновление тултипов без полной перерисовки DOM
+  DCLogic.prototype.__updateTips = function () {
+    var vals;
+    try { vals = this.renderVals ? this.renderVals() : null; } catch (e) { return; }
+    if (!vals) return;
+    var self = this;
+    [['tip', '__tipTpl', '__tipHost'], ['otherTip', '__otherTipTpl', '__otherTipHost']]
+      .forEach(function (cfg) {
+        var data = vals[cfg[0]];
+        var tpl = self[cfg[1]], host = self[cfg[2]];
+        if (!tpl || !host) return;
+        if (!data) { host.innerHTML = ''; return; }
+        var ctx = Object.create(vals);
+        host.innerHTML = renderStr(tpl, ctx);
+      });
   };
   DCLogic.prototype.__rerender = function () {
     if (!this.__tplHTML || !this.__mount) return;
@@ -971,6 +993,21 @@ class Component extends DCLogic {
       }
     } catch (e) { console.error('bind error:', e); }
     if (this.__bindEvents) this.__bindEvents();
+    // запоминаем шаблоны тултипов для точечного обновления
+    try {
+      var self2 = this;
+      ['tip', 'otherTip'].forEach(function (name) {
+        var re = new RegExp('<sc-if\\s+value="\\{\\{\\s*' + name + '\\s*\\}\\}"[^>]*>([\\s\\S]*?)</sc-if>');
+        var mm = re.exec(self2.__tplHTML);
+        if (!mm) return;
+        var key = name === 'tip' ? '__tipTpl' : '__otherTipTpl';
+        self2[key] = mm[1];
+      });
+      // контейнеры: элементы-обёртки, куда рендерится тултип
+      var hosts = self2.__mount.querySelectorAll('[data-tip-host]');
+      if (hosts[0]) self2.__tipHost = hosts[0];
+      if (hosts[1]) self2.__otherTipHost = hosts[1];
+    } catch (e) {}
   };
   window.DCLogic = DCLogic;
 
