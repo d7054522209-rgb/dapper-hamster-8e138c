@@ -75,19 +75,24 @@ PILOT_CODES = {"43", "61", "79"}   # пилотные филиалы
 # Источник: файл «Выдача Филиалам.xlsx», лист СВОД, колонка «ТПФ факт выдачи ПУГ».
 # Эти счётчики физически уехали из Туркестана, поэтому их надо вычесть
 # из остатка ТПФ и учесть как «получено» у филиалов-получателей.
-ISSUED_FROM_TURKESTAN = {
-    "Кызылорда": 4368,
-    "Тараз": 3696,
-    "Костанай": 3528,
-    "Уральск": 3216,
-    "Актау": 3024,
-    "Актобе": 2688,
-    "Алматы": 2184,
-    "Атырау": 2016,
-    "Астана": 1848,
-    "Талдыкорган": 1344,
-    "Зайсан": 504,
+# Сводка по филиалам 2 фазы: план по СЗ ДИТ, отгружено, фактически выдано.
+# Источник: «Выдача Филиалам.xlsx», лист СВОД.
+PHASE2_SUMMARY = {
+    # регион: (план СЗ ДИТ, палеты, отгружено СЗ ДМ, факт выдачи)
+    "Актобе":      (2700, 16, 2688, 2688),
+    "Атырау":      (2100, 12, 2016, 2016),
+    "Тараз":       (3700, 22, 3696, 3696),
+    "Уральск":     (3800, 22, 3696, 3216),
+    "Костанай":    (3500, 21, 3528, 3528),
+    "Актау":       (3100, 18, 3024, 3024),
+    "Алматы":      (2200, 13, 2184, 2184),
+    "Талдыкорган": (1300,  8, 1344, 1344),
+    "Караганда":   ( 600,  4,  672,    0),
+    "Астана":      (1800, 10, 1680, 1848),
+    "Зайсан":      ( 400,  3,  504,  504),
+    "Кызылорда":   (   0,  0,    0, 4368),
 }
+ISSUED_FROM_TURKESTAN = {k: v[3] for k, v in PHASE2_SUMMARY.items()}
 ISSUED_TOTAL = sum(ISSUED_FROM_TURKESTAN.values())   # 28 416
 
 # e-Qural API — количество активированных приборов
@@ -522,13 +527,20 @@ def build_data(inst, wh, plat, equral_total=0):
     wt = wh["_total"]
 
     # Установлено берём ИЗ MMS (единый источник). Общее — сумма всех регионов MMS.
-    total = plat["activated_total"] + sum(o for o in plat.get("other_totals", {}).values())
+    # «Установлено всего» — из отчёта ПФ (физически установленные счётчики).
+    # «Зарегистрировано в системе» — из MMS (может отставать от факта).
+    registered_mms = plat["activated_total"] + sum(
+        o for o in plat.get("other_totals", {}).values())
+    total = total_file if total_file else registered_mms
 
-    # ── Региональный срез (пилотные) — installed из MMS ──
+    # ── Региональный срез (1 фаза) ──
+    # installed — из отчёта ПФ (факт установки)
+    # registered — из MMS (зарегистрировано в системе)
     regional = []
     for en in ("kyzylorda", "turkestan", "shymkent"):
         ru = EN2RU[en]
-        inst_n = activated[en]            # УСТАНОВЛЕНО = из MMS
+        inst_n = installed.get(en) or activated[en]   # факт ПФ, иначе MMS
+        reg_n = activated[en]                          # зарегистрировано в MMS
         w = wh[en]
         rp = REGIONAL_PLANS[ru]
         # Остаток на складе = Отправлено с завода − Установлено (формула Дамира)
@@ -546,6 +558,7 @@ def build_data(inst, wh, plat, equral_total=0):
             "region": ru,
             "installed": inst_n,
             "activated": inst_n,
+            "registered": reg_n,
             "online": online[en],
             "offline": inst_n - online[en],
             "availability": round(online[en] / inst_n * 100, 2) if inst_n else 0.0,
@@ -635,6 +648,7 @@ def build_data(inst, wh, plat, equral_total=0):
         "generatedAt": ru_date(today),
         "equralTotal": equral_total,
         "installed": total,
+        "registeredTotal": registered_mms,
         "activated": plat["activated_total"],
         "online": online_total,
         "offline": total - online_total,
@@ -676,10 +690,15 @@ def build_data(inst, wh, plat, equral_total=0):
     _names.discard("Кызылорда")          # Кызылорда — пилотный, не прочий
     other_regions = []
     for name in _names:
+        cnt = other_totals.get(name, 0)
+        plan_dit, pallets, shipped, issued = PHASE2_SUMMARY.get(name, (0, 0, 0, 0))
         other_regions.append({
             "region": name,
-            "installed": other_totals.get(name, 0),
-            "received": ISSUED_FROM_TURKESTAN.get(name, 0),
+            "planDit": plan_dit,       # план по СЗ ДИТ
+            "shipped": shipped,        # отгружено по СЗ ДМ
+            "received": issued,        # фактически выдано из ТПФ
+            "installed": cnt,          # установлено (для 2 фазы = данные MMS)
+            "registered": cnt,         # зарегистрировано в системе (MMS)
         })
     other_regions.sort(key=lambda x: (-x["installed"], -x["received"]))
     other_daily_src = plat.get("other_daily", {})
