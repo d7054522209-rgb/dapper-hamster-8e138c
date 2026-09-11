@@ -546,7 +546,7 @@ input[type=date]{font-family:inherit}
 </div>
 
 <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:26px">
-<div style="font-size:13px;font-weight:700;color:#6e7480">Установка по дням — прочие филиалы</div>
+<div style="font-size:13px;font-weight:700;color:#6e7480">Установка по дням — прочие регионы</div>
 <div style="display:flex;gap:18px;flex-wrap:wrap">
 <sc-for list="{{ otherLegend }}" as="l" hint-placeholder-count="6">
 <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#4b5158"><span style="width:11px;height:11px;border-radius:3px;background: {{ l.color }}"></span>{{ l.region }}</div>
@@ -866,12 +866,17 @@ class Component extends DCLogic {
       return (o == null) ? undefined : o[k];
     }, ctx);
   }
+  var __fnStore = [];
   function interp(str, ctx) {
     return str.replace(/\{\{\s*([^}]+?)\s*\}\}/g, function (_, e) {
       e = e.trim();
       if (e === 'false') return '';
       if (e === 'true') return 'true';
       var v = getPath(ctx, e);
+      if (typeof v === 'function') {
+        __fnStore.push(v);
+        return '__DCFN_' + (__fnStore.length - 1) + '__';
+      }
       return (v === undefined || v === null) ? '' : String(v);
     });
   }
@@ -942,8 +947,29 @@ class Component extends DCLogic {
     try { vals = this.renderVals ? this.renderVals() : {}; }
     catch (e) { console.error('renderVals error:', e); return; }
     if (!vals) return;
+    __fnStore = [];
     try { this.__mount.innerHTML = renderStr(this.__tplHTML, vals); }
     catch (e) { console.error('render error:', e); }
+    // навешиваем реальные обработчики вместо строковых маркеров
+    try {
+      var EVT = { onmouseenter: 'mouseenter', onmouseleave: 'mouseleave',
+                  onclick: 'click', onmouseover: 'mouseover', onmouseout: 'mouseout',
+                  onchange: 'change', oninput: 'input' };
+      var all = this.__mount.querySelectorAll('*');
+      for (var i = 0; i < all.length; i++) {
+        var el = all[i];
+        if (!el.attributes) continue;
+        for (var j = el.attributes.length - 1; j >= 0; j--) {
+          var a = el.attributes[j];
+          var mm = /^__DCFN_(\d+)__$/.exec(a.value || '');
+          if (!mm) continue;
+          var fn = __fnStore[+mm[1]];
+          var ev = EVT[a.name.toLowerCase()];
+          el.removeAttribute(a.name);
+          if (fn && ev) el.addEventListener(ev, fn);
+        }
+      }
+    } catch (e) { console.error('bind error:', e); }
     if (this.__bindEvents) this.__bindEvents();
   };
   window.DCLogic = DCLogic;
