@@ -71,6 +71,25 @@ KATO_NAMES = {
 }
 PILOT_CODES = {"43", "61", "79"}   # пилотные филиалы
 
+# ── Выдача счётчиков из Туркестанского ПФ в другие филиалы ──
+# Источник: файл «Выдача Филиалам.xlsx», лист СВОД, колонка «ТПФ факт выдачи ПУГ».
+# Эти счётчики физически уехали из Туркестана, поэтому их надо вычесть
+# из остатка ТПФ и учесть как «получено» у филиалов-получателей.
+ISSUED_FROM_TURKESTAN = {
+    "Кызылорда": 4368,
+    "Тараз": 3696,
+    "Костанай": 3528,
+    "Уральск": 3216,
+    "Актау": 3024,
+    "Актобе": 2688,
+    "Алматы": 2184,
+    "Атырау": 2016,
+    "Астана": 1848,
+    "Талдыкорган": 1344,
+    "Зайсан": 504,
+}
+ISSUED_TOTAL = sum(ISSUED_FROM_TURKESTAN.values())   # 28 416
+
 # e-Qural API — количество активированных приборов
 EQURAL_API_URL = ("https://equral.ktga.kz/api/metering-system/"
                   "MeteringDeviceService/GetActivatedCount")
@@ -513,7 +532,15 @@ def build_data(inst, wh, plat, equral_total=0):
         w = wh[en]
         rp = REGIONAL_PLANS[ru]
         # Остаток на складе = Отправлено с завода − Установлено (формула Дамира)
+        # Остаток на складе = Отправлено с завода − Установлено,
+        # с поправкой на перераспределение между филиалами:
+        #   Туркестан отдал ISSUED_TOTAL → вычитаем,
+        #   Кызылорда получила часть от Туркестана → прибавляем.
         stock_remain = w["accepted"] - inst_n
+        if en == "turkestan":
+            stock_remain -= ISSUED_TOTAL
+        elif en == "kyzylorda":
+            stock_remain += ISSUED_FROM_TURKESTAN.get("Кызылорда", 0)
         fill_pct = round(stock_remain / CAPACITY[en] * 100, 2) if CAPACITY[en] else 0.0
         regional.append({
             "region": ru,
@@ -642,11 +669,19 @@ def build_data(inst, wh, plat, equral_total=0):
     print(f"  ✓ installed={fmt(total)} activated={fmt(plat['activated_total'])} "
           f"lag={fmt(lag)} pace={avg_pace} forecast={forecast_date_str}")
 
-    # ── Прочие регионы: список + по дням для их графика ──
+    # ── Прочие филиалы: список + по дням для их графика ──
+    # Показываем и полученные от Туркестана счётчики, и установленные.
     other_totals = plat.get("other_totals", {})
-    other_regions = [{"region": name, "installed": cnt}
-                     for name, cnt in sorted(other_totals.items(),
-                                             key=lambda x: -x[1])]
+    _names = set(other_totals) | set(ISSUED_FROM_TURKESTAN)
+    _names.discard("Кызылорда")          # Кызылорда — пилотный, не прочий
+    other_regions = []
+    for name in _names:
+        other_regions.append({
+            "region": name,
+            "installed": other_totals.get(name, 0),
+            "received": ISSUED_FROM_TURKESTAN.get(name, 0),
+        })
+    other_regions.sort(key=lambda x: (-x["installed"], -x["received"]))
     other_daily_src = plat.get("other_daily", {})
     other_daily = []
     for ds in sorted(other_daily_src.keys()):
